@@ -7,73 +7,14 @@
  *
  * La API soporta CORS (Access-Control-Allow-Origin: *), sin API key.
  *
- * IMPORTANTE: No existe endpoint por lat/lon/radio.
- * Estrategia: buscar gasolineras por provincia → filtrar por distancia en cliente.
+ * Estrategia: se consultan todas las estaciones de España (~12.000) y se
+ * filtra por distancia en cliente con Haversine. Esto garantiza que aparezcan
+ * gasolineras de provincias vecinas cuando el usuario está cerca de un límite
+ * provincial, a costa de ~2s de carga inicial.
  */
 
 const API_BASE = 'https://sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes/PreciosCarburantes';
-const NOMINATIM_REVERSE = 'https://nominatim.openstreetmap.org/reverse';
-const TIMEOUT_MS = 15000;
-
-/**
- * Tabla de conversión: nombre de provincia → IDProvincia de la API MITECO.
- * Los IDs corresponden a los códigos INE de dos dígitos.
- * Se incluyen variantes de nombre para mayor robustez en el matching.
- */
-const PROVINCIAS_ID = {
-    'álava': '01', 'alava': '01', 'araba': '01',
-    'albacete': '02',
-    'alicante': '03', 'alacant': '03',
-    'almería': '04', 'almeria': '04',
-    'ávila': '05', 'avila': '05',
-    'badajoz': '06',
-    'illes balears': '07', 'islas baleares': '07', 'balears': '07', 'baleares': '07',
-    'barcelona': '08',
-    'burgos': '09',
-    'cáceres': '10', 'caceres': '10',
-    'cádiz': '11', 'cadiz': '11',
-    'castellón': '12', 'castellon': '12', 'castelló': '12',
-    'ciudad real': '13',
-    'córdoba': '14', 'cordoba': '14',
-    'a coruña': '15', 'la coruña': '15', 'coruña': '15', 'a coruna': '15',
-    'cuenca': '16',
-    'girona': '17', 'gerona': '17',
-    'granada': '18',
-    'guadalajara': '19',
-    'gipuzkoa': '20', 'guipúzcoa': '20', 'guipuzcoa': '20',
-    'huelva': '21',
-    'huesca': '22',
-    'jaén': '23', 'jaen': '23',
-    'león': '24', 'leon': '24',
-    'lleida': '25', 'lérida': '25', 'lerida': '25',
-    'la rioja': '26', 'rioja': '26',
-    'lugo': '27',
-    'madrid': '28',
-    'málaga': '29', 'malaga': '29',
-    'murcia': '30',
-    'navarra': '31', 'nafarroa': '31',
-    'ourense': '32', 'orense': '32',
-    'asturias': '33',
-    'palencia': '34',
-    'las palmas': '35', 'palmas': '35',
-    'pontevedra': '36',
-    'salamanca': '37',
-    'santa cruz de tenerife': '38', 'tenerife': '38',
-    'cantabria': '39',
-    'segovia': '40',
-    'sevilla': '41',
-    'soria': '42',
-    'tarragona': '43',
-    'teruel': '44',
-    'toledo': '45',
-    'valencia': '46', 'valència': '46',
-    'valladolid': '47',
-    'bizkaia': '48', 'vizcaya': '48',
-    'zamora': '49',
-    'zaragoza': '50',
-    'ceuta': '51',
-    'melilla': '52',
-};
+const TIMEOUT_MS = 20000;
 
 // ── API pública ──────────────────────────────────────────────────────────────
 
@@ -98,100 +39,16 @@ const PROVINCIAS_ID = {
  * console.log(lista[0].nombre); // 'REPSOL'
  */
 async function fetchGasolineras(latitud, longitud, radioKm) {
-    const idProvincia = await _getIdProvinciaDesdeCoords(latitud, longitud);
-
-    const endpoint = idProvincia
-        ? `${API_BASE}/EstacionesTerrestres/FiltroProvincia/${idProvincia}`
-        : `${API_BASE}/EstacionesTerrestres/`;
-
-    const datos = await _fetchConTimeout(endpoint, TIMEOUT_MS);
+    // Se consulta siempre toda España y se filtra por distancia en cliente.
+    // Esto garantiza que aparezcan gasolineras de provincias vecinas cuando
+    // el usuario está cerca de un límite provincial (caso frecuente en zonas
+    // periurbanas). La API devuelve ~12.000 estaciones en ~2s, lo cual es
+    // aceptable dado que el filtrado Haversine es O(n) muy rápido en cliente.
+    const datos = await _fetchConTimeout(`${API_BASE}/EstacionesTerrestres/`, TIMEOUT_MS);
     return _normalizarRespuesta(datos, latitud, longitud, radioKm);
 }
 
 // ── Funciones privadas ───────────────────────────────────────────────────────
-
-/**
- * Obtiene el IDProvincia de la API MITECO haciendo reverse geocoding con Nominatim.
- * Devuelve null si no puede determinarse la provincia (se usará fallback all-Spain).
- *
- * @param {number} lat
- * @param {number} lon
- * @returns {Promise<string|null>} IDProvincia (ej: '28') o null
- */
-async function _getIdProvinciaDesdeCoords(lat, lon) {
-    try {
-        const params = new URLSearchParams({
-            lat:     lat,
-            lon:     lon,
-            format:  'json',
-            zoom:    '10',       // Nivel 10 = comarca/provincia en OSM España
-            addressdetails: '1',
-        });
-
-        const geoController = new AbortController();
-        const geoTimer = setTimeout(() => geoController.abort(), 5000);
-
-        let respuesta;
-        try {
-            respuesta = await fetch(`${NOMINATIM_REVERSE}?${params}`, {
-                headers: { 'Accept-Language': 'es' },
-                signal: geoController.signal,
-            });
-        } finally {
-            clearTimeout(geoTimer);
-        }
-
-        if (!respuesta.ok) return null;
-
-        const datos = await respuesta.json();
-        const address = datos.address || {};
-
-        // Nominatim en España puede devolver el nombre de provincia en distintos campos
-        const candidatos = [
-            address.county,
-            address.state_district,
-            address.province,
-            address.state,
-        ].filter(Boolean);
-
-        for (const nombre of candidatos) {
-            const id = _buscarIdProvincia(nombre);
-            if (id) return id;
-        }
-
-        return null;
-
-    } catch (error) {
-        console.warn('[GasoApp] No se pudo determinar la provincia por geocodificación:', error.message);
-        return null;
-    }
-}
-
-/**
- * Busca el IDProvincia normalizando el nombre (sin tildes, minúsculas).
- *
- * @param {string} nombre - Nombre de la provincia tal como devuelve Nominatim
- * @returns {string|null} IDProvincia o null si no hay coincidencia
- */
-function _buscarIdProvincia(nombre) {
-    if (!nombre) return null;
-
-    // Normalizar: minúsculas + quitar tildes
-    const normalizado = nombre.toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .trim();
-
-    // Búsqueda directa
-    if (PROVINCIAS_ID[normalizado]) return PROVINCIAS_ID[normalizado];
-
-    // Búsqueda parcial: ¿alguna clave conocida está contenida en el nombre recibido?
-    for (const [clave, id] of Object.entries(PROVINCIAS_ID)) {
-        if (normalizado.includes(clave) || clave.includes(normalizado)) return id;
-    }
-
-    return null;
-}
 
 /**
  * Realiza fetch con timeout usando AbortController (compatible con todos los browsers).
