@@ -3,7 +3,7 @@
  * Estrategia: cache-first para assets estáticos, network-only para APIs.
  */
 
-const CACHE_NAME = 'gasolup-v21';
+const CACHE_NAME = 'gasolup-v22';
 
 const ASSETS_ESTATICOS = [
     './index.html',

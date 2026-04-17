@@ -1,4 +1,4 @@
-# ⛽ GasoApp — Precios de gasolineras cercanas
+# ⛽ GasoLup — Precios de gasolineras cercanas
 
 ![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=flat&logo=html5&logoColor=white)
 ![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=flat&logo=css3&logoColor=white)
@@ -40,8 +40,8 @@ No hay dependencias ni build. Solo abre el archivo en el navegador.
 
 ```bash
 # 1. Clona o descarga el repositorio
-git clone https://github.com/tu-usuario/gasoapp.git
-cd gasoapp
+git clone https://github.com/tu-usuario/gasolup.git
+cd gasolup
 
 # 2. Abre la carpeta en VS Code
 code .
@@ -79,7 +79,7 @@ Sube la carpeta entera a cualquier hosting estático:
 ## 🗂️ Estructura del proyecto
 
 ```
-gasoapp/
+gasolup/
 ├── index.html          # SPA única — estructura semántica y accesible
 ├── css/
 │   └── styles.css      # Tema oscuro, variables CSS, responsive, animaciones

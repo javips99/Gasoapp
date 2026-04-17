@@ -215,9 +215,10 @@ const App = (() => {
 
             console.log('[GasoApp] Gasolineras recibidas:', _gasolineras.length);
 
-            const carburanteActivo = _getCarburanteActivo();
+            const carburanteActivo = _getCarburanteMapaActivo();
             MapModule.renderizarMarcadores(_gasolineras, carburanteActivo);
             UIModule.renderizarListado(_gasolineras);
+            UIModule.renderizarPanelMapa(_gasolineras, carburanteActivo);
 
             if (_gasolineras.length > 0) {
                 _mostrarToast(`${_gasolineras.length} gasolineras encontradas`, 'ok');
@@ -280,12 +281,16 @@ const App = (() => {
             if (e.key === 'Enter') _geocodificarLocalidad(e.target.value);
         });
 
-        // Filtros del listado
+        // Filtros del listado (solo afectan al listado)
         _on('input-busqueda',    'input',  () => UIModule.aplicarFiltros());
         _on('select-orden',      'change', () => UIModule.aplicarFiltros());
-        _on('select-carburante', 'change', () => {
-            UIModule.aplicarFiltros();
-            MapModule.renderizarMarcadores(_gasolineras, _getCarburanteActivo());
+        _on('select-carburante', 'change', () => UIModule.aplicarFiltros());
+
+        // Selector de carburante del mapa (afecta a marcadores y paneles laterales)
+        _on('select-carburante-mapa', 'change', () => {
+            const carb = _getCarburanteMapaActivo();
+            MapModule.renderizarMarcadores(_gasolineras, carb);
+            UIModule.renderizarPanelMapa(_gasolineras, carb);
         });
     }
 
@@ -315,13 +320,21 @@ const App = (() => {
     }
 
     /**
-     * Devuelve el carburante activo en el selector, o 'g95' como valor por defecto.
-     *
+     * Devuelve el carburante activo en el selector del listado, o 'g95' por defecto.
      * @returns {string}
      */
     function _getCarburanteActivo() {
         const val = document.getElementById('select-carburante').value;
         return val === 'todos' ? 'g95' : val;
+    }
+
+    /**
+     * Devuelve el carburante seleccionado en el selector del mapa, o 'g95' por defecto.
+     * @returns {string}
+     */
+    function _getCarburanteMapaActivo() {
+        const el = document.getElementById('select-carburante-mapa');
+        return el ? el.value : 'g95';
     }
 
     /**
