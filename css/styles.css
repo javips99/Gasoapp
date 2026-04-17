@@ -116,9 +116,9 @@ img, svg { display: block; max-width: 100%; }
     object-fit: contain;
 }
 
-/* Mobile: solo el icono */
-.header__logo-img--icon { height: 70px; display: block; }
-.header__logo-img--full { display: none; }
+/* Siempre se muestra el logo con nombre; el icono solo queda oculto */
+.header__logo-img--icon { display: none; }
+.header__logo-img--full { height: 50px; display: block; }
 
 /* ── Toggle vista ───────────────────────────────────────────── */
 .toggle-view {
@@ -828,9 +828,8 @@ img, svg { display: block; max-width: 100%; }
    ══════════════════════════════════════════════════════════════ */
 @media (min-width: 768px) {
 
-    /* Tablet/Desktop: logo completo con nombre */
-    .header__logo-img--icon { display: none; }
-    .header__logo-img--full { height: 80px; display: block; }
+    /* Tablet/Desktop: logo con nombre algo más grande */
+    .header__logo-img--full { height: 70px; }
 
     .controls {
         flex-direction: row;
